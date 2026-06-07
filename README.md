@@ -28,8 +28,6 @@
 
 后面就按模块慢慢改：业务接口尽量和教程对齐，动得比较多的是缓存、秒杀、MQ、限流和 Docker 部署。包名还是 `com.hmdp`，方便和原版对照。
 
-面试怎么讲、细节为什么这样选，写在仓库根目录的 [`点评项目拷打-优化版.md`](../点评项目拷打-优化版.md) 里。
-
 ---
 
 ## 和课程版比，动了哪些地方
@@ -112,12 +110,11 @@ sequenceDiagram
 
 ### Docker（省事）
 
+克隆仓库后，在项目根目录执行：
+
 ```bash
-cd LiveHub-main
 docker compose up -d --build
 ```
-
-在仓库根目录 `LiveHub` 也可以直接 `docker compose up -d --build`（有转发配置）。
 
 | 服务 | 地址 |
 |------|------|
@@ -148,10 +145,14 @@ mvn spring-boot:run
 ## 目录
 
 ```
-LiveHub/
-├── LiveHub-main/                 # 后端
-├── 点评项目拷打-优化版.md
-└── 点评项目拷打.md
+.
+├── src/                          # 业务代码
+├── docker/                       # MySQL 初始化脚本
+├── docker-compose.yml            # 一键起中间件 + 应用
+├── docker-compose.package.yml    # 本地先 mvn package 再构建镜像
+├── Dockerfile / Dockerfile.package
+├── pom.xml
+└── README.md
 ```
 
 改得比较多的几个文件：

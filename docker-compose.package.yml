@@ -1,0 +1,9 @@
+# Middleware + app (app image built from local target/*.jar, no Maven inside Docker).
+include:
+  - path: ./docker-compose.yml
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.package

@@ -1,0 +1,94 @@
+# LiveHub 宿主机端口（容器内端口不变，多项目并存时改这里即可）
+#   API 18081 | MySQL 13306 | Redis 16379 | RocketMQ NameServer 9876
+# 基础镜像默认走 DaoCloud 加速（与 Dockerfile 一致），避免 Docker Hub 拉取超时
+services:
+  mysql:
+    image: docker.m.daocloud.io/library/mysql:8.0
+    container_name: livehub-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: hmdp
+    ports:
+      - "13306:3306"   # 宿主机 13306，避免与本机 MySQL 3306 冲突
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./src/main/resources/db/hmdp.sql:/sql/hmdp.sql:ro
+      - ./docker/mysql/init.sh:/docker-entrypoint-initdb.d/01-init.sh:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+
+  redis:
+    image: docker.m.daocloud.io/library/redis:7-alpine
+    container_name: livehub-redis
+    ports:
+      - "16379:6379"   # 宿主机 16379，避免与本机 Redis 6379 冲突
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  rocketmq-namesrv:
+    image: docker.m.daocloud.io/apache/rocketmq:4.9.7
+    container_name: livehub-rocketmq-namesrv
+    ports:
+      - "9876:9876"
+    command: sh mqnamesrv
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep -v grep | grep mqnamesrv || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  rocketmq-broker:
+    image: docker.m.daocloud.io/apache/rocketmq:4.9.7
+    container_name: livehub-rocketmq-broker
+    ports:
+      - "10909:10909"
+      - "10911:10911"
+    environment:
+      NAMESRV_ADDR: rocketmq-namesrv:9876
+    command: sh mqbroker -n rocketmq-namesrv:9876 autoCreateTopicEnable=true
+    depends_on:
+      rocketmq-namesrv:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep -v grep | grep mqbroker || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: livehub-app
+    ports:
+      - "18081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      MYSQL_HOST: mysql
+      MYSQL_DATABASE: hmdp
+      MYSQL_ROOT_PASSWORD: root
+      REDIS_HOST: redis
+      ROCKETMQ_NAME_SERVER: rocketmq-namesrv:9876
+      IMAGE_UPLOAD_DIR: /app/uploads
+    volumes:
+      - uploads-data:/app/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rocketmq-broker:
+        condition: service_healthy
+
+volumes:
+  mysql-data:
+  uploads-data:
